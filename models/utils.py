@@ -30,7 +30,7 @@ def get_optimizer(option, params):
 
 def get_criterion(opts):
     if opts.criterion == 'cross_entropy':
-        if opts.type == 'segmenter':
+        if opts.type == 'seg':
             criterion = cross_entropy_2D if opts.tensor_dim == '2D' else cross_entropy_3D
         elif opts.type == 'classifier':
             criterion = CrossEntropyLoss()

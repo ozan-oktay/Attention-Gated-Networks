@@ -9,6 +9,7 @@
     }
   },
   "model":{
+    "type":"seg",
     "continue_train": false,
     "which_epoch": 540,
     "model_type": "unet_ct_dsv",

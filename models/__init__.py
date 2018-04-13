@@ -19,7 +19,7 @@ class ModelOpts:
         self.tensor_dim = '2D'
         self.path_pre_trained_model = None
         self.criterion = 'cross_entropy'
-        self.type = 'segmenter'
+        self.type = 'seg'
 
         # Attention
         self.nonlocal_mode = 'concatenation'
@@ -67,7 +67,7 @@ def get_model(json_opts):
     print('\nInitialising model {}'.format(model_opts.model_type))
 
     model_type = model_opts.type
-    if model_type == 'segmenter':
+    if model_type == 'seg':
         # Return the model type
         from .feedforward_seg_model import FeedForwardSegmentation
         model = FeedForwardSegmentation()

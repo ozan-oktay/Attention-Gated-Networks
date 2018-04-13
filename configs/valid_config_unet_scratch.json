@@ -30,6 +30,7 @@
     }
   },
   "model":{
+    "type":"seg",
     "continue_train": true,
     "which_epoch": 0,
     "model_type": "unet_ct_dsv",

@@ -8,6 +8,7 @@
     }
   },
   "model":{
+    "type":"seg",
     "continue_train": false,
     "which_epoch": -1,
     "model_type": "unet_ct_multi_att_dsv_2_demo",

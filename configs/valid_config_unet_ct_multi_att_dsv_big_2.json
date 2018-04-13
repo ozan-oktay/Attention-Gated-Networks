@@ -31,6 +31,7 @@
     }
   },
   "model":{
+    "type":"seg",
     "continue_train": true,
     "which_epoch": 650,
     "model_type": "unet_ct_multi_att_dsv_2",
