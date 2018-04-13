@@ -1,11 +1,10 @@
-import os, collections
+import os
 import numpy as np
+import utils.util as util
+from collections import OrderedDict
+
 import torch
 from torch.autograd import Variable
-
-from torch.nn import CrossEntropyLoss, DataParallel
-from collections import OrderedDict
-import utils.util as util
 from .base_model import BaseModel
 from .networks import get_network
 from .layers.loss import *
@@ -31,13 +30,11 @@ class FeedForwardClassifier(BaseModel):
         self.tensor_dim = opts.tensor_dim
 
         # load/define networks
-        self.division_factor = opts.division_factor
         self.net = get_network(opts.model_type, n_classes=opts.output_nc,
                                in_channels=opts.input_nc, nonlocal_mode=opts.nonlocal_mode,
                                tensor_dim=opts.tensor_dim, feature_scale=opts.feature_scale,
                                attention_dsample=opts.attention_dsample,
                                aggregation_mode=opts.aggregation_mode)
-        #if opts.use_multi_gpu: self.net = DataParallel(self.net)
         if self.use_cuda: self.net = self.net.cuda()
 
         # load the model if a path is specified or it is in inference mode

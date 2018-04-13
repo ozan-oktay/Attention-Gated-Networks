@@ -1,14 +1,12 @@
 {
     "training":{
-        "max_it":10000,
+        "max_it":10,
         "arch_type": "us",
-        "n_epochs": 500,
+        "n_epochs": 300,
         "save_epoch_freq": 10,
         "lr_policy": "step_warmstart",
         "lr_decay_iters": 25,
         "lr_red_factor": 0.1,
-        "warm_start_epoch":0,
-        "warm_start_lr": 0.01,
         "batchSize": 64,
         "preloadData": false,
         "num_workers" : 8,
@@ -37,11 +35,10 @@
     },
     "model":{
         "type":"classifier",
-        "continue_train": true,
-        "which_epoch": 290,
+        "continue_train": false,
+        "which_epoch": 0,
         "model_type": "sononet2",
         "tensor_dim": "2D",
-        "division_factor": 2,
         "input_nc": 1,
         "output_nc": 14,
         "lr_rate": 0.1,
@@ -49,7 +46,7 @@
         "feature_scale": 8,
         "gpu_ids": [0],
         "isTrain": true,
-        "checkpoints_dir": "./checkpoints_2",
-        "experiment_name": "experiment_sononet_fs8_v9"
+        "checkpoints_dir": "./checkpoints",
+        "experiment_name": "experiment_sononet_8"
     }
 }

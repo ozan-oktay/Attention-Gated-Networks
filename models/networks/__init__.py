@@ -43,7 +43,7 @@ def get_network(name, n_classes, in_channels=3, feature_scale=4, tensor_dim='2D'
                       feature_scale=feature_scale,
                       attention_dsample=attention_dsample,
                       is_deconv=False)
-    elif name in ['sononet']:
+    elif name in ['sononet','sononet2']:
         model = model(n_classes=n_classes,
                       is_batchnorm=True,
                       in_channels=in_channels,
@@ -74,5 +74,6 @@ def _get_model_instance(name, tensor_dim):
         'unet_ct_multi_att_dsv_4': {'3D': unet_CT_multi_att_dsv_4_3D},
         'unet_ct_multi_att_dsv_4_demo': {'3D': unet_CT_multi_att_dsv_4_demo_3D},
         'sononet': {'2D': sononet},
+        'sononet2': {'2D': sononet2},
         'sononet_grid_attention': {'2D': sononet_grid_attention}
     }[name][tensor_dim]

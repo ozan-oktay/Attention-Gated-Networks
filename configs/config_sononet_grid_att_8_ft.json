@@ -1,6 +1,6 @@
 {
     "training":{
-        "max_it":10000,
+        "max_it":100,
         "arch_type": "us",
         "n_epochs": 300,
         "save_epoch_freq": 1,
@@ -8,7 +8,7 @@
         "lr_decay_iters": 25,
         "lr_red_factor": 0.1,
         "batchSize": 64,
-        "preloadData": true,
+        "preloadData": false,
         "num_workers" : 8,
         "sampler": "weighted2",
         "bgd_weight_multiplier": 13
@@ -34,26 +34,24 @@
         }
     },
     "model":{
-        "type":"classifier",
-        "weight":[1, 1, 1],
-        "aggregation":"weighted_mean",
-        "aggregation2":"max",
-        "continue_train": true,
-        "which_epoch": 298,
-        "model_type": "sononet_grid_attention2_merged",
+        "type":"aggregated_classifier",
+        "criterion":"cross_entropy",
+        "model_type": "sononet_grid_attention",
         "nonlocal_mode": "concatenation_mean_flow",
-        "aggregation_mode": "concatenation",
+        "aggregation_mode": "ft",
+        "weight":[1],
+        "aggregation":"mean",
+        "continue_train": false,
+        "which_epoch": 0,
         "tensor_dim": "2D",
-        "division_factor": 2,
         "input_nc": 1,
         "output_nc": 14,
-        "lr_rate": 0.01,
+        "lr_rate": 0.1,
         "l2_reg_weight": 1e-6,
         "feature_scale": 8,
         "gpu_ids": [0],
         "isTrain": true,
-        "checkpoints_dir": "./checkpoints_2",
-        "pretrained_param_path2": "./checkpoints_2/experiment_sononet_grid_attention_fs8_avg_v12/298_net_S.pth",
-        "experiment_name": "experiment_sononet_grid_attention_fs8_w_avg_v1"
+        "checkpoints_dir": "./checkpoints",
+        "experiment_name": "experiment_sononet_grid_attention_fs8_avg_v12"
     }
 }

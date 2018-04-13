@@ -5,21 +5,21 @@ Misc Utility functions
 import os
 import numpy as np
 import torch.optim as optim
+from torch.nn import CrossEntropyLoss
 from utils.metrics import segmentation_scores, dice_score_list
 from sklearn import metrics
 from .layers.loss import *
 
-
 def get_optimizer(option, params):
-    optim = 'sgd' if not hasattr(option, 'optim') else option.optim
-    if optim == 'sgd':
+    opt_alg = 'sgd' if not hasattr(option, 'optim') else option.optim
+    if opt_alg == 'sgd':
         optimizer = optim.SGD(params,
                               lr=option.lr_rate,
                               momentum=0.9,
                               nesterov=True,
                               weight_decay=option.l2_reg_weight)
 
-    if optim == 'adam':
+    if opt_alg == 'adam':
         optimizer = optim.Adam(params,
                                lr=option.lr_rate,
                                betas=(0.9, 0.999),
@@ -32,13 +32,14 @@ def get_criterion(opts):
     if opts.criterion == 'cross_entropy':
         if opts.type == 'seg':
             criterion = cross_entropy_2D if opts.tensor_dim == '2D' else cross_entropy_3D
-        elif opts.type == 'classifier':
+        elif 'classifier' in opts.type:
             criterion = CrossEntropyLoss()
     elif opts.criterion == 'dice_loss':
         criterion = SoftDiceLoss(opts.output_nc)
     elif opts.criterion == 'dice_loss_pancreas_only':
         criterion = CustomSoftDiceLoss(opts.output_nc, class_ids=[0, 2])
 
+    return criterion
 
 def recursive_glob(rootdir='.', suffix=''):
     """Performs recursive glob with given suffix and rootdir 

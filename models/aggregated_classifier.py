@@ -16,18 +16,19 @@ class AggregatedClassifier(FeedForwardClassifier):
         weight_t = torch.from_numpy(np.array(weight, dtype=np.float32))
         self.weight = weight
         self.aggregation = opts.raw.aggregation
+        self.aggregation_param = opts.raw.aggregation_param
         self.aggregation_weight = Variable(weight_t, volatile=True).view(-1,1,1).cuda()
 
     def compute_loss(self):
         """Compute loss function. Iterate over multiple output"""
         preds = self.predictions
-        weights = self.weight,
+        weights = self.weight
         if not isinstance(preds, collections.Sequence):
             preds = [preds]
             weights = [1]
 
         loss = 0
-        for lmda, prediction in zip( self.predictions):
+        for lmda, prediction in zip(weights, preds):
             if lmda == 0:
                 continue
             loss += lmda * self.criterion(prediction, self.target)
@@ -49,7 +50,8 @@ class AggregatedClassifier(FeedForwardClassifier):
                 self.pred = logits.data.mean(0).max(1)
             elif self.aggregation == 'weighted_mean':
                 self.pred = (self.aggregation_weight.expand_as(logits) * logits).data.mean(0).max(1)
-
+            elif self.aggregation == 'idx':
+                self.pred = logits[self.aggregation_param].data.max(1)
         else:
             # Apply a softmax and return a segmentation map
             self.logits = self.net.apply_argmax_softmax(self.predictions)
@@ -64,7 +66,6 @@ class AggregatedClassifier(FeedForwardClassifier):
             self.aggregate_output()
 
     def backward(self):
-        #print(self.net.apply_argmax_softmax(self.prediction), self.target)
         self.compute_loss()
         self.loss.backward()
 
