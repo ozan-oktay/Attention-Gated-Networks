@@ -24,12 +24,12 @@ class Transformations:
 
     def get_transformation(self):
         return {
-            'ukbb_sax': self.cmr_3d_sax_transform(),
-            'hms_sax':  self.hms_sax_transform(),
-            'test_sax': self.test_3d_sax_transform(),
-            'acdc_sax': self.cmr_3d_sax_transform()
-            'us':       self.ultrasound_transform(),
-        }[self.name]
+            'ukbb_sax': self.cmr_3d_sax_transform,
+            'hms_sax':  self.hms_sax_transform,
+            'test_sax': self.test_3d_sax_transform,
+            'acdc_sax': self.cmr_3d_sax_transform,
+            'us':       self.ultrasound_transform,
+        }[self.name]()
 
     def print(self):
         print('\n\n############# Augmentation Parameters #############')
