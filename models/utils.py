@@ -4,7 +4,41 @@ Misc Utility functions
 
 import os
 import numpy as np
+import torch.optim as optim
 from utils.metrics import segmentation_scores, dice_score_list
+from sklearn import metrics
+from .layers.loss import *
+
+
+def get_optimizer(option, params):
+    optim = 'sgd' if not hasattr(option, 'optim') else option.optim
+    if optim == 'sgd':
+        optimizer = optim.SGD(params,
+                              lr=option.lr_rate,
+                              momentum=0.9,
+                              nesterov=True,
+                              weight_decay=option.l2_reg_weight)
+
+    if optim == 'adam':
+        optimizer = optim.Adam(params,
+                               lr=option.lr_rate,
+                               betas=(0.9, 0.999),
+                               weight_decay=option.l2_reg_weight)
+
+    return optimizer
+
+
+def get_criterion(opts):
+    if opts.criterion == 'cross_entropy':
+        if opts.type == 'segmenter':
+            criterion = cross_entropy_2D if opts.tensor_dim == '2D' else cross_entropy_3D
+        elif opts.type == 'classifier':
+            criterion = CrossEntropyLoss()
+    elif opts.criterion == 'dice_loss':
+        criterion = SoftDiceLoss(opts.output_nc)
+    elif opts.criterion == 'dice_loss_pancreas_only':
+        criterion = CustomSoftDiceLoss(opts.output_nc, class_ids=[0, 2])
+
 
 def recursive_glob(rootdir='.', suffix=''):
     """Performs recursive glob with given suffix and rootdir 
@@ -51,3 +85,32 @@ def segmentation_stats(pred_seg, target):
     dice = dice_score_list(gts, preds, n_class=n_classes)
 
     return iou, dice
+
+
+def classification_scores(gts, preds, labels):
+    accuracy        = metrics.accuracy_score(gts,  preds)
+    class_accuracies = []
+    for lab in labels: # TODO Fix
+        class_accuracies.append(metrics.accuracy_score(gts[gts == lab], preds[gts == lab]))
+    class_accuracies = np.array(class_accuracies)
+
+    f1_micro        = metrics.f1_score(gts,        preds, average='micro')
+    precision_micro = metrics.precision_score(gts, preds, average='micro')
+    recall_micro    = metrics.recall_score(gts,    preds, average='micro')
+    f1_macro        = metrics.f1_score(gts,        preds, average='macro')
+    precision_macro = metrics.precision_score(gts, preds, average='macro')
+    recall_macro    = metrics.recall_score(gts,    preds, average='macro')
+
+    # class wise score
+    f1s        = metrics.f1_score(gts,        preds, average=None)
+    precisions = metrics.precision_score(gts, preds, average=None)
+    recalls    = metrics.recall_score(gts,    preds, average=None)
+
+    confusion = metrics.confusion_matrix(gts,preds, labels=labels)
+
+    #TODO confusion matrix, recall, precision
+    return accuracy, f1_micro, precision_micro, recall_micro, f1_macro, precision_macro, recall_macro, confusion, class_accuracies, f1s, precisions, recalls
+
+
+def classification_stats(pred_seg, target, labels):
+    return classification_scores(target, pred_seg, labels)

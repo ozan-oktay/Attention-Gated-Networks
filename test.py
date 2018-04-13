@@ -1,103 +1,177 @@
-import numpy as np
-import os
-import torch
+import os, sys, numpy as np
+from torch.utils.data import DataLoader, sampler
+from tqdm import tqdm
 
-from torch.utils.data import DataLoader
+
 from dataio.loader import get_dataset, get_dataset_path
 from dataio.transformation import get_dataset_transformation
-from utils.util import json_file_to_pyobj, determine_crop_size
-from dataio.loader.utils import write_nifti_img
+from utils.util import json_file_to_pyobj
+from utils.visualiser import Visualiser
+from utils.error_logger import ErrorLogger
+from models.networks_other import adjust_learning_rate
 
 from models import get_model
-from utils.metrics import dice_score, distance_metric, precision_and_recall
-from utils.error_logger import StatLogger
 
-def inference(json_filename):
+class HiddenPrints:
+    def __enter__(self):
+        self._original_stdout = sys.stdout
+        sys.stdout = None
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        sys.stdout = self._original_stdout
+
+class StratifiedSampler(object):
+    """Stratified Sampling
+    Provides equal representation of target classes in each batch
+    """
+    def __init__(self, class_vector, batch_size):
+        """
+        Arguments
+        ---------
+        class_vector : torch tensor
+            a vector of class labels
+        batch_size : integer
+            batch_size
+        """
+        self.class_vector = class_vector
+        self.batch_size = batch_size
+        self.num_iter = len(class_vector) // 52
+        self.n_class = 14
+        self.sample_n = 2
+        # create pool of each vectors
+        indices = {}
+        for i in range(self.n_class):
+            indices[i] = np.where(self.class_vector == i)[0]
+
+        self.indices = indices
+        self.background_index = np.argmax([ len(indices[i]) for i in range(self.n_class)])
+
+
+    def gen_sample_array(self):
+        # sample 2 from each class
+        sample_array = []
+        for i in range(self.num_iter):
+            arrs = []
+            for i in range(self.n_class):
+                n = self.sample_n
+                if i == self.background_index:
+                    n = self.sample_n * (self.n_class-1)
+                arr = np.random.choice(self.indices[i], n)
+                arrs.append(arr)
+
+            sample_array.append(np.hstack(arrs))
+        return np.hstack(sample_array)
+
+    def __iter__(self):
+        return iter(self.gen_sample_array())
+
+    def __len__(self):
+        return len(self.class_vector)
+
+
+def test(arguments):
+
+    # Parse input arguments
+    json_filename = arguments.config
+    network_debug = arguments.debug
 
     # Load options
     json_opts = json_file_to_pyobj(json_filename)
+    train_opts = json_opts.training
 
-    # Setup the NN Model
-    arch_type = 'test_sax'
-    model = get_model(json_opts.model)
-
-    # Output save directory
-    save_directory = os.path.join(model.save_dir, arch_type)
-
-    # Use post-processing
-    use_crf = False
+    # Architecture type
+    arch_type = train_opts.arch_type
 
     # Setup Dataset and Augmentation
-    dataset_class = get_dataset(arch_type)
-    dataset_path = get_dataset_path(arch_type, json_opts.data_path)
-    dataset_transform = get_dataset_transformation(arch_type, json_opts.augmentation)
+    ds_class = get_dataset(arch_type)
+    ds_path  = get_dataset_path(arch_type, json_opts.data_path)
+    ds_transform = get_dataset_transformation(arch_type, opts=json_opts.augmentation)
+
+    # Setup the NN Model
+    with HiddenPrints():
+        model = get_model(json_opts.model)
+
+    if network_debug:
+        print('# of pars: ', model.get_number_parameters())
+        print('fp time: {0:.8f} sec\tbp time: {1:.8f} sec per sample'.format(*model.get_fp_bp_time2((1,1,224,288))))
+        exit()
 
     # Setup Data Loader
-    test_dataset = dataset_class(dataset_path, transform=dataset_transform['test'])
-    test_loader = DataLoader(dataset=test_dataset, num_workers=1, batch_size=1, shuffle=False)
+    num_workers = train_opts.num_workers if hasattr(train_opts, 'num_workers') else 16
+    
+    valid_dataset = ds_class(ds_path, split='val',   transform=ds_transform['valid'], preload_data=train_opts.preloadData)
+    test_dataset  = ds_class(ds_path, split='test',  transform=ds_transform['valid'], preload_data=train_opts.preloadData)
+   # loader
+    batch_size = train_opts.batchSize
+    valid_loader = DataLoader(dataset=valid_dataset, num_workers=num_workers, batch_size=train_opts.batchSize, shuffle=False)
+    test_loader  = DataLoader(dataset=test_dataset,  num_workers=0, batch_size=train_opts.batchSize, shuffle=False)
 
-    # Setup stats logger
-    stat_logger = StatLogger()
+    # Visualisation Parameters
+    filename = 'test_loss_log.txt'
+    visualizer = Visualiser(json_opts.visualisation, save_dir=model.save_dir,
+                            filename=filename)
+    error_logger = ErrorLogger()
 
-    # testing loop
-    for iteration, (input_arr, input_meta, label_arr) in enumerate(test_loader, 1):
-        pixel_size  = input_meta['pixdim'][0][1:4].cpu().numpy()
-        input_shape = input_meta['dim'][0][1:4].cpu().numpy()
-        output = np.zeros(input_shape, dtype=np.int8)
+    # Training Function
+    track_labels = np.arange(len(valid_dataset.label_names))
+    model.set_labels(track_labels)
+    model.set_scheduler(train_opts)
 
-        # Determine the crop area
-        pre_pad, _ = determine_crop_size(input_shape, json_opts.augmentation.test_sax.division_factor)
+    if hasattr(model.net, 'deep_supervised'):
+        model.net.deep_supervised = False
 
-        # Run the model
-        model.set_input(input_arr)
-        model.test()
+    # Validation and Testing Iterations
+    pr_lbls = []
+    gt_lbls = []
+    for loader, split in zip([test_loader], ['test']):
+    #for loader, split in zip([valid_loader, test_loader], ['validation', 'test']):
+        model.reset_results()
 
-        # Use Conditional Random Field to post-process the segmentations
-        if use_crf:
-            from utils.post_process_crf import apply_crf
-            prob = model.logits.data.squeeze().permute(1, 2, 3, 0).cpu().float().numpy()
-            inp = input_arr.squeeze().cpu().numpy()
-            pred_np = apply_crf(inp, prob, theta_a=0.5, theta_b=1, theta_r=1, mu1=1, mu2=2)
-        else:
-            pred_np = np.squeeze(model.pred_seg.cpu().byte().numpy())
+        for epoch_iter, (images, labels) in tqdm(enumerate(loader, 1), total=len(loader)):
 
-        # Remove the padded area
-        output[:, :, :] = pred_np[pre_pad[0]: pre_pad[0] + input_shape[0],
-                                  pre_pad[1]: pre_pad[1] + input_shape[1],
-                                  pre_pad[2]: pre_pad[2] + input_shape[2]]
+            # Make a forward pass with the model
+            model.set_input(images, labels)
+            model.validate()
 
-        # write the images
-        write_nifti_img(output, input_meta, save_directory)
+        # Error visualisation
+        errors = model.get_accumulated_errors()
+        stats = model.get_classification_stats()
+        error_logger.update({**errors, **stats}, split=split)
 
-        # If there is a label image - compute statistics
-        if torch.is_tensor(label_arr):
-            label_arr = label_arr[0].cpu().numpy()
-            dice_vals = dice_score(label_arr, output, n_class=int(4))
-            md, hd = distance_metric(label_arr, output, dx=pixel_size[0], k=1)
-            precision, recall = precision_and_recall(label_arr, output, n_class=int(4))
-            stat_logger.update(split='test', input_dict={'img_name':input_meta['name'][0],
-                                                         'dice_LV': dice_vals[1],
-                                                         'dice_MY': dice_vals[2],
-                                                         'dice_RV': dice_vals[3],
-                                                         'prec_MYO': precision[1],
-                                                         'reca_MYO': recall[1],
-                                                         'md_MYO': md,
-                                                         'hd_MYO': hd
-                                                          })
-        if iteration==100:
-            break
+    # Update the plots
+    # for split in ['train', 'validation', 'test']:
+    for split in ['test']:
+        # exclude bckground
+        #track_labels = np.delete(track_labels, 3)
+        #show_labels = train_dataset.label_names[:3] + train_dataset.label_names[4:]
+        show_labels = valid_dataset.label_names
+        visualizer.plot_current_errors(300, error_logger.get_errors(split), split_name=split, labels=show_labels)
+        visualizer.print_current_errors(300, error_logger.get_errors(split), split_name=split)
 
-    stat_logger.statlogger2csv(split='test', out_csv_name=os.path.join(save_directory,'stats.csv'))
-    for key, (mean_val, std_val) in stat_logger.get_errors(split='test').items():
-        print('-',key,': \t{0:.3f}+-{1:.3f}'.format(mean_val, std_val),'-')
+        import pickle as pkl
+        dst_file = os.path.join(model.save_dir, 'test_result.pkl')
+        with open(dst_file, 'wb') as f:
+            d = error_logger.get_errors(split)
+            d['labels'] = valid_dataset.label_names
+            d['pr_lbls'] = np.hstack(model.pr_lbls)
+            d['gt_lbls'] = np.hstack(model.gt_lbls)
+            pkl.dump(d, f)
 
+    error_logger.reset()
+
+    if arguments.time:
+        print('# of pars: ', model.get_number_parameters())
+        print('fp time: {0:.8f} sec\tbp time: {1:.8f} sec per sample'.format(*model.get_fp_bp_time2((1,1,224,288))))
+        
 
 if __name__ == '__main__':
     import argparse
 
-    parser = argparse.ArgumentParser(description='CNN Seg Inference Function')
+    parser = argparse.ArgumentParser(description='CNN Seg Training Function')
 
-    parser.add_argument('-c', '--config', help='testing config file', required=True)
+    parser.add_argument('-c', '--config',  help='training config file', required=True)
+    parser.add_argument('-d', '--debug',   help='returns number of parameters and bp/fp runtime', action='store_true')
+    parser.add_argument('-t', '--time',   help='returns number of parameters and bp/fp runtime', action='store_true')
     args = parser.parse_args()
 
-    inference(args.config)
+    test(args)

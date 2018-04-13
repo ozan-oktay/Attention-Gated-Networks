@@ -59,48 +59,58 @@ class deconv2DBatchNormRelu(nn.Module):
 
 
 class unetConv2(nn.Module):
-    def __init__(self, in_size, out_size, is_batchnorm):
+    def __init__(self, in_size, out_size, is_batchnorm, n=2, ks=3, stride=1, padding=1):
         super(unetConv2, self).__init__()
-
+        self.n = n
+        self.ks = ks
+        self.stride = stride
+        self.padding = padding
+        s = stride
+        p = padding
         if is_batchnorm:
-            self.conv1 = nn.Sequential(nn.Conv2d(in_size, out_size, 3, 1, 1),
-                                       nn.BatchNorm2d(out_size),
-                                       nn.ReLU(inplace=True),)
-            self.conv2 = nn.Sequential(nn.Conv2d(out_size, out_size, 3, 1, 1),
-                                       nn.BatchNorm2d(out_size),
-                                       nn.ReLU(inplace=True),)
+            for i in range(1, n+1):
+                conv = nn.Sequential(nn.Conv2d(in_size, out_size, ks, s, p),
+                                     nn.BatchNorm2d(out_size),
+                                     nn.ReLU(),)
+                setattr(self, 'conv%d'%i, conv)
+                in_size = out_size
+
         else:
-            self.conv1 = nn.Sequential(nn.Conv2d(in_size, out_size, 3, 1, 1),
-                                       nn.ReLU(inplace=True),)
-            self.conv2 = nn.Sequential(nn.Conv2d(out_size, out_size, 3, 1, 1),
-                                       nn.ReLU(inplace=True),)
+            for i in range(1, n+1):
+                conv = nn.Sequential(nn.Conv2d(in_size, out_size, ks, s, p),
+                                     nn.ReLU(),)
+                setattr(self, 'conv%d'%i, conv)
+                in_size = out_size
 
         # initialise the blocks
         for m in self.children():
             init_weights(m, init_type='kaiming')
 
     def forward(self, inputs):
-        outputs = self.conv1(inputs)
-        outputs = self.conv2(outputs)
-        return outputs
+        x = inputs
+        for i in range(1, self.n+1):
+            conv = getattr(self, 'conv%d'%i)
+            x = conv(x)
+
+        return x
 
 
 class UnetConv3(nn.Module):
-    def __init__(self, in_size, out_size, is_batchnorm, kernel_size=(3,3,1), padding_size=(1,1,0), init_stride=(1,1,1)):
+    def __init__(self, in_size, out_size, is_batchnorm):
         super(UnetConv3, self).__init__()
 
         if is_batchnorm:
-            self.conv1 = nn.Sequential(nn.Conv3d(in_size, out_size, kernel_size, init_stride, padding_size),
+            self.conv1 = nn.Sequential(nn.Conv3d(in_size, out_size, (3,3,1), 1, (1,1,0)),
                                        nn.BatchNorm3d(out_size),
-                                       nn.ReLU(inplace=True),)
-            self.conv2 = nn.Sequential(nn.Conv3d(out_size, out_size, kernel_size, 1, padding_size),
+                                       nn.ReLU(),)
+            self.conv2 = nn.Sequential(nn.Conv3d(out_size, out_size, (3,3,1), 1, (1,1,0)),
                                        nn.BatchNorm3d(out_size),
-                                       nn.ReLU(inplace=True),)
+                                       nn.ReLU(),)
         else:
-            self.conv1 = nn.Sequential(nn.Conv3d(in_size, out_size, kernel_size, init_stride, padding_size),
-                                       nn.ReLU(inplace=True),)
-            self.conv2 = nn.Sequential(nn.Conv3d(out_size, out_size, kernel_size, 1, padding_size),
-                                       nn.ReLU(inplace=True),)
+            self.conv1 = nn.Sequential(nn.Conv3d(in_size, out_size, (3,3,1), 1, (1,1,0)),
+                                       nn.ReLU(),)
+            self.conv2 = nn.Sequential(nn.Conv3d(out_size, out_size, (3,3,1), 1, (1,1,0)),
+                                       nn.ReLU(),)
 
         # initialise the blocks
         for m in self.children():
@@ -109,39 +119,6 @@ class UnetConv3(nn.Module):
     def forward(self, inputs):
         outputs = self.conv1(inputs)
         outputs = self.conv2(outputs)
-        return outputs
-
-
-class FCNConv3(nn.Module):
-    def __init__(self, in_size, out_size, is_batchnorm, kernel_size=(3,3,1), padding_size=(1,1,0), init_stride=(1,1,1)):
-        super(FCNConv3, self).__init__()
-
-        if is_batchnorm:
-            self.conv1 = nn.Sequential(nn.Conv3d(in_size, out_size, kernel_size, init_stride, padding_size),
-                                       nn.BatchNorm3d(out_size),
-                                       nn.ReLU(inplace=True),)
-            self.conv2 = nn.Sequential(nn.Conv3d(out_size, out_size, kernel_size, 1, padding_size),
-                                       nn.BatchNorm3d(out_size),
-                                       nn.ReLU(inplace=True),)
-            self.conv3 = nn.Sequential(nn.Conv3d(out_size, out_size, kernel_size, 1, padding_size),
-                                       nn.BatchNorm3d(out_size),
-                                       nn.ReLU(inplace=True),)
-        else:
-            self.conv1 = nn.Sequential(nn.Conv3d(in_size, out_size, kernel_size, init_stride, padding_size),
-                                       nn.ReLU(inplace=True),)
-            self.conv2 = nn.Sequential(nn.Conv3d(out_size, out_size, kernel_size, 1, padding_size),
-                                       nn.ReLU(inplace=True),)
-            self.conv3 = nn.Sequential(nn.Conv3d(out_size, out_size, kernel_size, 1, padding_size),
-                                       nn.ReLU(inplace=True),)
-
-        # initialise the blocks
-        for m in self.children():
-            init_weights(m, init_type='kaiming')
-
-    def forward(self, inputs):
-        outputs = self.conv1(inputs)
-        outputs = self.conv2(outputs)
-        outputs = self.conv3(outputs)
         return outputs
 
 
@@ -179,16 +156,16 @@ class UnetGatingSignal3(nn.Module):
 
 
 class UnetGridGatingSignal3(nn.Module):
-    def __init__(self, in_size, out_size, kernel_size=(1,1,1), is_batchnorm=True):
+    def __init__(self, in_size, out_size, is_batchnorm):
         super(UnetGridGatingSignal3, self).__init__()
 
         if is_batchnorm:
-            self.conv1 = nn.Sequential(nn.Conv3d(in_size, out_size, kernel_size, (1,1,1), (0,0,0)),
-                                       nn.BatchNorm3d(out_size),
+            self.conv1 = nn.Sequential(nn.Conv3d(in_size, out_size, (1,1,1), (1,1,1), (0,0,0)),
+                                       nn.BatchNorm3d(in_size//2),
                                        nn.ReLU(inplace=True),
                                        )
         else:
-            self.conv1 = nn.Sequential(nn.Conv3d(in_size, out_size, kernel_size, (1,1,1), (0,0,0)),
+            self.conv1 = nn.Sequential(nn.Conv3d(in_size, out_size, (1,1,1), (1,1,1), (0,0,0)),
                                        nn.ReLU(inplace=True),
                                        )
 
@@ -224,13 +201,12 @@ class unetUp(nn.Module):
 
 
 class UnetUp3(nn.Module):
-    def __init__(self, in_size, out_size, is_deconv, is_batchnorm=True):
+    def __init__(self, in_size, out_size, is_deconv):
         super(UnetUp3, self).__init__()
+        self.conv = UnetConv3(in_size, out_size, False)
         if is_deconv:
-            self.conv = UnetConv3(in_size, out_size, is_batchnorm)
             self.up = nn.ConvTranspose3d(in_size, out_size, kernel_size=(4,4,1), stride=(2,2,1), padding=(1,1,0))
         else:
-            self.conv = UnetConv3(in_size+out_size, out_size, is_batchnorm)
             self.up = nn.Upsample(scale_factor=(2, 2, 1), mode='trilinear')
 
         # initialise the blocks
@@ -246,74 +222,77 @@ class UnetUp3(nn.Module):
         return self.conv(torch.cat([outputs1, outputs2], 1))
 
 
-class UnetUp3_CT(nn.Module):
-    def __init__(self, in_size, out_size, is_batchnorm=True):
-        super(UnetUp3_CT, self).__init__()
-        self.conv = UnetConv3(in_size + out_size, out_size, is_batchnorm, kernel_size=(3,3,3), padding_size=(1,1,1))
-        self.up = nn.Upsample(scale_factor=(2, 2, 2), mode='trilinear')
+class unetDsv(nn.Module):
+    def __init__(self, in_size, out_size, scale_factor):
+        super(unetDsv, self).__init__()
+        self.dsv = nn.Sequential(nn.Conv2d(in_size, out_size, kernel_size=1, stride=1, padding=0),
+                                 nn.Upsample(scale_factor=scale_factor, mode='bilinear'), )
 
-        # initialise the blocks
-        for m in self.children():
-            if m.__class__.__name__.find('UnetConv3') != -1: continue
-            init_weights(m, init_type='kaiming')
-
-    def forward(self, inputs1, inputs2):
-        outputs2 = self.up(inputs2)
-        offset = outputs2.size()[2] - inputs1.size()[2]
-        padding = 2 * [offset // 2, offset // 2, 0]
-        outputs1 = F.pad(inputs1, padding)
-        return self.conv(torch.cat([outputs1, outputs2], 1))
+    def forward(self, input):
+        return self.dsv(input)
 
 
-# Squeeze-and-Excitation Network
-class SqEx(nn.Module):
+class segnetDown2(nn.Module):
+    def __init__(self, in_size, out_size):
+        super(segnetDown2, self).__init__()
+        self.conv1 = conv2DBatchNormRelu(in_size, out_size, 3, 1, 1)
+        self.conv2 = conv2DBatchNormRelu(out_size, out_size, 3, 1, 1)
+        self.maxpool_with_argmax = nn.MaxPool2d(2, 2, return_indices=True)
 
-    def __init__(self, n_features, reduction=6):
-        super(SqEx, self).__init__()
+    def forward(self, inputs):
+        outputs = self.conv1(inputs)
+        outputs = self.conv2(outputs)
+        unpooled_shape = outputs.size()
+        outputs, indices = self.maxpool_with_argmax(outputs)
+        return outputs, indices, unpooled_shape
 
-        if n_features % reduction != 0:
-            raise ValueError('n_features must be divisible by reduction (default = 4)')
 
-        self.linear1 = nn.Linear(n_features, n_features // reduction, bias=False)
-        self.nonlin1 = nn.ReLU(inplace=True)
-        self.linear2 = nn.Linear(n_features // reduction, n_features, bias=False)
-        self.nonlin2 = nn.Sigmoid()
+class segnetDown3(nn.Module):
+    def __init__(self, in_size, out_size):
+        super(segnetDown3, self).__init__()
+        self.conv1 = conv2DBatchNormRelu(in_size, out_size, 3, 1, 1)
+        self.conv2 = conv2DBatchNormRelu(out_size, out_size, 3, 1, 1)
+        self.conv3 = conv2DBatchNormRelu(out_size, out_size, 3, 1, 1)
+        self.maxpool_with_argmax = nn.MaxPool2d(2, 2, return_indices=True)
 
-    def forward(self, x):
+    def forward(self, inputs):
+        outputs = self.conv1(inputs)
+        outputs = self.conv2(outputs)
+        outputs = self.conv3(outputs)
+        unpooled_shape = outputs.size()
+        outputs, indices = self.maxpool_with_argmax(outputs)
+        return outputs, indices, unpooled_shape
 
-        y = F.avg_pool3d(x, kernel_size=x.size()[2:5])
-        y = y.permute(0, 2, 3, 4, 1)
-        y = self.nonlin1(self.linear1(y))
-        y = self.nonlin2(self.linear2(y))
-        y = y.permute(0, 4, 1, 2, 3)
-        y = x * y
-        return y
 
-class UnetUp3_SqEx(nn.Module):
-    def __init__(self, in_size, out_size, is_deconv, is_batchnorm):
-        super(UnetUp3_SqEx, self).__init__()
-        if is_deconv:
-            self.sqex = SqEx(n_features=in_size+out_size)
-            self.conv = UnetConv3(in_size, out_size, is_batchnorm)
-            self.up = nn.ConvTranspose3d(in_size, out_size, kernel_size=(4,4,1), stride=(2,2,1), padding=(1,1,0))
-        else:
-            self.sqex = SqEx(n_features=in_size+out_size)
-            self.conv = UnetConv3(in_size+out_size, out_size, is_batchnorm)
-            self.up = nn.Upsample(scale_factor=(2, 2, 1), mode='trilinear')
+class segnetUp2(nn.Module):
+    def __init__(self, in_size, out_size):
+        super(segnetUp2, self).__init__()
+        self.unpool = nn.MaxUnpool2d(2, 2)
+        self.conv1 = conv2DBatchNormRelu(in_size, out_size, 3, 1, 1)
+        self.conv2 = conv2DBatchNormRelu(out_size, out_size, 3, 1, 1)
 
-        # initialise the blocks
-        for m in self.children():
-            if m.__class__.__name__.find('UnetConv3') != -1: continue
-            init_weights(m, init_type='kaiming')
+    def forward(self, inputs, indices, output_shape):
+        outputs = self.unpool(input=inputs, indices=indices, output_size=output_shape)
+        outputs = self.conv1(outputs)
+        outputs = self.conv2(outputs)
+        return outputs
 
-    def forward(self, inputs1, inputs2):
-        outputs2 = self.up(inputs2)
-        offset = outputs2.size()[2] - inputs1.size()[2]
-        padding = 2 * [offset // 2, offset // 2, 0]
-        outputs1 = F.pad(inputs1, padding)
-        concat = torch.cat([outputs1, outputs2], 1)
-        gated  = self.sqex(concat)
-        return self.conv(gated)
+
+class segnetUp3(nn.Module):
+    def __init__(self, in_size, out_size):
+        super(segnetUp3, self).__init__()
+        self.unpool = nn.MaxUnpool2d(2, 2)
+        self.conv1 = conv2DBatchNormRelu(in_size, out_size, 3, 1, 1)
+        self.conv2 = conv2DBatchNormRelu(out_size, out_size, 3, 1, 1)
+        self.conv3 = conv2DBatchNormRelu(out_size, out_size, 3, 1, 1)
+
+    def forward(self, inputs, indices, output_shape):
+        outputs = self.unpool(input=inputs, indices=indices, output_size=output_shape)
+        outputs = self.conv1(outputs)
+        outputs = self.conv2(outputs)
+        outputs = self.conv3(outputs)
+        return outputs
+
 
 class residualBlock(nn.Module):
     expansion = 1
@@ -369,6 +348,24 @@ class residualBottleneck(nn.Module):
         return out
 
 
+class linknetUp(nn.Module):
+    def __init__(self, in_channels, n_filters):
+        super(linknetUp, self).__init__()
+
+        # B, 2C, H, W -> B, C/2, H, W
+        self.convbnrelu1 = conv2DBatchNormRelu(in_channels, n_filters/2, k_size=1, stride=1, padding=1)
+
+        # B, C/2, H, W -> B, C/2, H, W
+        self.deconvbnrelu2 = nn.deconv2DBatchNormRelu(n_filters/2, n_filters/2, k_size=3,  stride=2, padding=0,)
+
+        # B, C/2, H, W -> B, C, H, W
+        self.convbnrelu3 = conv2DBatchNormRelu(n_filters/2, n_filters, k_size=1, stride=1, padding=1)
+
+    def forward(self, x):
+        x = self.convbnrelu1(x)
+        x = self.deconvbnrelu2(x)
+        x = self.convbnrelu3(x)
+        return x
 
 
 class SeqModelFeatureExtractor(nn.Module):
@@ -392,22 +389,10 @@ class HookBasedFeatureExtractor(nn.Module):
         super(HookBasedFeatureExtractor, self).__init__()
 
         self.submodule = submodule
-        self.submodule.eval()
         self.layername = layername
         self.outputs_size = None
         self.outputs = None
-        self.inputs = None
-        self.inputs_size = None
         self.upscale = upscale
-
-    def get_input_array(self, m, i, o):
-        if isinstance(i, tuple):
-            self.inputs = [i[index].data.clone() for index in range(len(i))]
-            self.inputs_size = [input.size() for input in self.inputs]
-        else:
-            self.inputs = i.data.clone()
-            self.inputs_size = self.input.size()
-        print('Input Array Size: ', self.inputs_size)
 
     def get_output_array(self, m, i, o):
         if isinstance(o, tuple):
@@ -416,7 +401,7 @@ class HookBasedFeatureExtractor(nn.Module):
         else:
             self.outputs = o.data.clone()
             self.outputs_size = self.outputs.size()
-        print('Output Array Size: ', self.outputs_size)
+        #print(self.outputs_size)
 
     def rescale_output_array(self, newsize):
         us = nn.Upsample(size=newsize[2:], mode='bilinear')
@@ -427,25 +412,14 @@ class HookBasedFeatureExtractor(nn.Module):
 
     def forward(self, x):
         target_layer = self.submodule._modules.get(self.layername)
-
         # Collect the output tensor
-        h_inp = target_layer.register_forward_hook(self.get_input_array)
-        h_out = target_layer.register_forward_hook(self.get_output_array)
+        h = target_layer.register_forward_hook(self.get_output_array)
         self.submodule(x)
-        h_inp.remove()
-        h_out.remove()
+        h.remove()
 
         # Rescale the feature-map if it's required
         if self.upscale: self.rescale_output_array(x.size())
 
-        return self.inputs, self.outputs
+        return self.outputs
 
 
-class UnetDsv3(nn.Module):
-    def __init__(self, in_size, out_size, scale_factor):
-        super(UnetDsv3, self).__init__()
-        self.dsv = nn.Sequential(nn.Conv3d(in_size, out_size, kernel_size=1, stride=1, padding=0),
-                                 nn.Upsample(scale_factor=scale_factor, mode='trilinear'), )
-
-    def forward(self, input):
-        return self.dsv(input)

@@ -8,7 +8,7 @@ from .base_model import BaseModel
 from .networks import get_network
 from .layers.loss import *
 from .networks_other import get_scheduler, print_network, benchmark_fp_bp_time
-from .utils import segmentation_stats
+from .utils import segmentation_stats, get_optimizer, get_criterion
 from .networks.utils import HookBasedFeatureExtractor
 
 
@@ -17,8 +17,8 @@ class FeedForwardSegmentation(BaseModel):
     def name(self):
         return 'FeedForwardSegmentation'
 
-    def initialize(self, opts):
-        BaseModel.initialize(self, opts)
+    def initialize(self, opts, **kwargs):
+        BaseModel.initialize(self, opts, **kwargs)
         self.isTrain = opts.isTrain
 
         # define network input and output pars
@@ -45,26 +45,18 @@ class FeedForwardSegmentation(BaseModel):
 
         # training objective
         if self.isTrain:
-            if opts.criterion == 'cross_entropy':
-                self.criterion = cross_entropy_2D if self.tensor_dim == '2D' else cross_entropy_3D
-            elif opts.criterion == 'dice_loss':
-                self.criterion = SoftDiceLoss(opts.output_nc)
-            elif opts.criterion == 'dice_loss_pancreas_only':
-                self.criterion = CustomSoftDiceLoss(opts.output_nc, class_ids=[0, 2])
-
+            self.criterion = get_criterion(opts)
             # initialize optimizers
             self.schedulers = []
             self.optimizers = []
-            self.optimizer_S = optim.Adam(self.net.parameters(),
-                                          lr=opts.lr_rate,
-                                          betas=(0.9, 0.999),
-                                          weight_decay=opts.l2_reg_weight
-                                          )
+            self.optimizer_S = get_optimizer(opts, self.net.parameters())
             self.optimizers.append(self.optimizer_S)
 
             # print the network details
-            print('Network is initialized')
-            print_network(self.net)
+            # print the network details
+            if kwargs.get('verbose', True):
+                print('Network is initialized')
+                print_network(self.net)
 
     def set_scheduler(self, train_opt):
         for optimizer in self.optimizers:
@@ -149,12 +141,15 @@ class FeedForwardSegmentation(BaseModel):
         return feature_extractor.forward(Variable(self.input))
 
     # returns the fp/bp times of the model
-    def get_fp_bp_time (self):
-        bsize = 1
-        inp_array = Variable(torch.zeros(bsize, 1, 160, 160, 96)).cuda()
-        out_array = Variable(torch.zeros(bsize, 1, 160, 160, 96)).cuda()
+    def get_fp_bp_time (self, size=None):
+        if size is None:
+            size = (1, 1, 160, 160, 96)
+
+        inp_array = Variable(torch.zeros(*size)).cuda()
+        out_array = Variable(torch.zeros(*size)).cuda()
         fp, bp = benchmark_fp_bp_time(self.net, inp_array, out_array)
 
+        bsize = size[0]
         return fp/float(bsize), bp/float(bsize)
 
     def save(self, epoch_label):

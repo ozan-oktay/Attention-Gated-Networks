@@ -20,7 +20,7 @@ class BaseModel():
     def name(self):
         return 'BaseModel'
 
-    def initialize(self, opt):
+    def initialize(self, opt, **kwargs):
         self.gpu_ids = opt.gpu_ids
         self.isTrain = opt.isTrain
         self.ImgTensor = torch.cuda.FloatTensor if self.gpu_ids else torch.Tensor
@@ -61,7 +61,7 @@ class BaseModel():
     # helper saving function that can be used by subclasses
     def save_network(self, network, network_label, epoch_label, gpu_ids):
         print('Saving the model {0} at the end of epoch {1}'.format(network_label, epoch_label))
-        save_filename = '{0:3d}_net_{1}.pth'.format(epoch_label, network_label)
+        save_filename = '{0:03d}_net_{1}.pth'.format(epoch_label, network_label)
         save_path = os.path.join(self.save_dir, save_filename)
         torch.save(network.cpu().state_dict(), save_path)
         if len(gpu_ids) and torch.cuda.is_available():
@@ -70,7 +70,7 @@ class BaseModel():
     # helper loading function that can be used by subclasses
     def load_network(self, network, network_label, epoch_label):
         print('Loading the model {0} - epoch {1}'.format(network_label, epoch_label))
-        save_filename = '{0:3d}_net_{1}.pth'.format(epoch_label, network_label)
+        save_filename = '{0:03d}_net_{1}.pth'.format(epoch_label, network_label)
         save_path = os.path.join(self.save_dir, save_filename)
         network.load_state_dict(torch.load(save_path))
 
@@ -81,10 +81,13 @@ class BaseModel():
         network.load_state_dict(torch.load(network_filepath), strict=strict)
 
     # update learning rate (called once every epoch)
-    def update_learning_rate(self):
+    def update_learning_rate(self, metric=None, epoch=None):
         for scheduler in self.schedulers:
-            scheduler.step()
-        lr = self.optimizers[0].param_groups[0]['lr']
+            if isinstance(scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
+                scheduler.step(metrics=metric)
+            else:
+                scheduler.step()
+            lr = self.optimizers[0].param_groups[0]['lr']
         print('current learning rate = %.7f' % lr)
 
     # returns the number of trainable parameters

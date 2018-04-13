@@ -10,6 +10,7 @@ class Transformations:
         # Input patch and scale size
         self.scale_size = (192, 192, 1)
         self.patch_size = (128, 128, 1)
+        # self.patch_size = (208, 272, 1)
 
         # Affine and Intensity Transformations
         self.shift_val = (0.1, 0.1)
@@ -27,6 +28,7 @@ class Transformations:
             'hms_sax':  self.hms_sax_transform(),
             'test_sax': self.test_3d_sax_transform(),
             'acdc_sax': self.cmr_3d_sax_transform()
+            'us':       self.ultrasound_transform(),
         }[self.name]
 
     def print(self):
@@ -135,3 +137,26 @@ class Transformations:
 
         return {'test': test_transform}
 
+
+    def ultrasound_transform(self):
+
+        train_transform = ts.Compose([ts.ToTensor(),
+                                      ts.TypeCast(['float']),
+                                      ts.AddChannel(axis=0),
+                                      ts.SpecialCrop(self.patch_size,0),
+                                      ts.RandomFlip(h=True, v=False, p=self.random_flip_prob),
+                                      ts.RandomAffine(rotation_range=self.rotate_val,
+                                                      translation_range=self.shift_val,
+                                                      zoom_range=self.scale_val,
+                                                      interp=('bilinear')),
+                                      ts.StdNormalize(),
+                                ])
+
+        valid_transform = ts.Compose([ts.ToTensor(),
+                                      ts.TypeCast(['float']),
+                                      ts.AddChannel(axis=0),
+                                      ts.SpecialCrop(self.patch_size,0),
+                                      ts.StdNormalize(),
+                                ])
+
+        return {'train': train_transform, 'valid': valid_transform}

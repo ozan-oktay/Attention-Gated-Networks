@@ -2,6 +2,23 @@ import numpy as np
 from .util import csv_write
 
 
+class BaseMeter(object):
+    """Just a place holderb"""
+
+    def __init__(self, name):
+        self.reset()
+        self.name = name
+
+    def reset(self):
+        pass
+
+    def update(self, val):
+        self.val = val
+
+    def get_value(self):
+        return self.val
+
+
 class AverageMeter(object):
     """Computes and stores the average and current value"""
 
@@ -21,6 +38,8 @@ class AverageMeter(object):
         self.count += n
         self.avg = self.sum / self.count
 
+    def get_value(self):
+        return self.avg
 
 class StatMeter(object):
     """Computes and stores the error vals and image names"""
@@ -55,15 +74,21 @@ class ErrorLogger(object):
                           }
 
     def update(self, input_dict, split):
+
         for key, value in input_dict.items():
             if key not in self.variables[split]:
-                self.variables[split][key] = AverageMeter(name=key)
+                if np.isscalar(value):
+                    self.variables[split][key] = AverageMeter(name=key)
+                else:
+                    self.variables[split][key] = BaseMeter(name=key)
+
             self.variables[split][key].update(value)
+
 
     def get_errors(self, split):
         output = dict()
         for key, meter_obj in self.variables[split].items():
-            output[key] = meter_obj.avg
+            output[key] = meter_obj.get_value()
         return output
 
     def reset(self):

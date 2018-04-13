@@ -85,7 +85,13 @@ def get_norm_layer(norm_type='instance'):
     return norm_layer
 
 
+def adjust_learning_rate(optimizer, lr):
+    """Sets the learning rate to a fixed number"""
+    for param_group in optimizer.param_groups:
+        param_group['lr'] = lr
+
 def get_scheduler(optimizer, opt):
+    print('opt.lr_policy = [{}]'.format(opt.lr_policy))
     if opt.lr_policy == 'lambda':
         def lambda_rule(epoch):
             lr_l = 1.0 - max(0, epoch + 1 + opt.epoch_count - opt.niter) / float(opt.niter_decay + 1)
@@ -93,9 +99,41 @@ def get_scheduler(optimizer, opt):
         scheduler = lr_scheduler.LambdaLR(optimizer, lr_lambda=lambda_rule)
     elif opt.lr_policy == 'step':
         scheduler = lr_scheduler.StepLR(optimizer, step_size=opt.lr_decay_iters, gamma=0.5)
+    elif opt.lr_policy == 'step2':
+        scheduler = lr_scheduler.StepLR(optimizer, step_size=opt.lr_decay_iters, gamma=0.1)
     elif opt.lr_policy == 'plateau':
+        print('schedular=plateau')
+        scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.1, threshold=0.01, patience=5)
+    elif opt.lr_policy == 'plateau2':
         scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.2, threshold=0.01, patience=5)
+    elif opt.lr_policy == 'step_warmstart':
+        def lambda_rule(epoch):
+            #print(epoch)
+            if epoch < 5:
+                lr_l = 0.1
+            elif 5 <= epoch < 100:
+                lr_l = 1
+            elif 100 <= epoch < 200:
+                lr_l = 0.1
+            elif 200 <= epoch:
+                lr_l = 0.01
+            return lr_l
+        scheduler = lr_scheduler.LambdaLR(optimizer, lr_lambda=lambda_rule)
+    elif opt.lr_policy == 'step_warmstart2':
+        def lambda_rule(epoch):
+            #print(epoch)
+            if epoch < 5:
+                lr_l = 0.1
+            elif 5 <= epoch < 50:
+                lr_l = 1
+            elif 50 <= epoch < 100:
+                lr_l = 0.1
+            elif 100 <= epoch:
+                lr_l = 0.01
+            return lr_l
+        scheduler = lr_scheduler.LambdaLR(optimizer, lr_lambda=lambda_rule)
     else:
+
         return NotImplementedError('learning rate policy [%s] is not implemented', opt.lr_policy)
     return scheduler
 
@@ -167,18 +205,23 @@ def measure_fp_bp_time(model, x, y):
     y_pred = model(x)
     torch.cuda.synchronize()
     elapsed_fp = time.time() - t0
-    y_pred = y_pred.sum()
+
+    if isinstance(y_pred, tuple):
+        y_pred = sum(y_p.sum() for y_p in y_pred)
+    else:
+        y_pred = y_pred.sum()
 
     # zero gradients, synchronize time and measure
     model.zero_grad()
     t0 = time.time()
-    y_pred.backward(y)
+    #y_pred.backward(y)
+    y_pred.backward()
     torch.cuda.synchronize()
     elapsed_bp = time.time() - t0
     return elapsed_fp, elapsed_bp
 
 
-def benchmark_fp_bp_time(model, x, y):
+def benchmark_fp_bp_time(model, x, y, n_trial=1000):
     # transfer the model on GPU
     model.cuda()
 
@@ -187,11 +230,13 @@ def benchmark_fp_bp_time(model, x, y):
         _, _ = measure_fp_bp_time(model, x, y)
 
     print('DONE WITH DRY RUNS, NOW BENCHMARKING')
-
+    
     # START BENCHMARKING
     t_forward = []
     t_backward = []
-    for i in range(20):
+    
+    print('trial: {}'.format(n_trial))
+    for i in range(n_trial):
         t_fp, t_bp = measure_fp_bp_time(model, x, y)
         t_forward.append(t_fp)
         t_backward.append(t_bp)
