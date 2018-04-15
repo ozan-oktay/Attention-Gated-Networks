@@ -2,14 +2,14 @@
   "training":{
     "arch_type": "acdc_sax",
     "n_epochs": 1000,
-    "save_epoch_freq": 50,
+    "save_epoch_freq": 10,
     "lr_policy": "step",
     "lr_decay_iters": 250,
     "batchSize": 2,
     "preloadData": true
   },
   "visualisation":{
-    "display_port": 8012,
+    "display_port": 8099,
     "no_html": true,
     "display_winsize": 256,
     "display_id": 1,
@@ -32,19 +32,19 @@
   "model":{
     "type":"seg",
     "continue_train": false,
-    "which_epoch": 930,
-    "model_type": "unet_ct_dsv",
+    "which_epoch": -1,
+    "model_type": "unet_ct_multi_att_dsv",
     "tensor_dim": "3D",
     "division_factor": 16,
     "input_nc": 1,
     "output_nc": 4,
     "lr_rate": 1e-4,
     "l2_reg_weight": 1e-6,
-    "feature_scale": 3,
+    "feature_scale": 4,
     "gpu_ids": [0],
     "isTrain": true,
     "checkpoints_dir": "./checkpoints",
-    "experiment_name": "experiment_unet_ct_dsv_huge",
+    "experiment_name": "experiment_unet_ct_multi_att_dsv",
     "criterion": "dice_loss"
   }
 }

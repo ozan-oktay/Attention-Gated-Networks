@@ -33,14 +33,14 @@ class unet_CT_multi_att_dsv_3D(nn.Module):
         self.maxpool4 = nn.MaxPool3d(kernel_size=(2, 2, 2))
 
         self.center = UnetConv3(filters[3], filters[4], self.is_batchnorm, kernel_size=(3,3,3), padding_size=(1,1,1))
-        self.gating = UnetGridGatingSignal3(filters[4], filters[3], kernel_size=(1, 1, 1), is_batchnorm=self.is_batchnorm)
+        self.gating = UnetGridGatingSignal3(filters[4], filters[4], kernel_size=(1, 1, 1), is_batchnorm=self.is_batchnorm)
 
         # attention blocks
-        self.attentionblock2 = MultiAttentionBlock(in_size=filters[1], gate_size=filters[3], inter_size=filters[1],
+        self.attentionblock2 = MultiAttentionBlock(in_size=filters[1], gate_size=filters[2], inter_size=filters[1],
                                                    nonlocal_mode=nonlocal_mode, sub_sample_factor= attention_dsample)
         self.attentionblock3 = MultiAttentionBlock(in_size=filters[2], gate_size=filters[3], inter_size=filters[2],
                                                    nonlocal_mode=nonlocal_mode, sub_sample_factor= attention_dsample)
-        self.attentionblock4 = MultiAttentionBlock(in_size=filters[3], gate_size=filters[3], inter_size=filters[3],
+        self.attentionblock4 = MultiAttentionBlock(in_size=filters[3], gate_size=filters[4], inter_size=filters[3],
                                                    nonlocal_mode=nonlocal_mode, sub_sample_factor= attention_dsample)
 
         # upsampling
@@ -84,13 +84,12 @@ class unet_CT_multi_att_dsv_3D(nn.Module):
         gating = self.gating(center)
 
         # Attention Mechanism
-        g_conv4, att4 = self.attentionblock4(conv4, gating)
-        g_conv3, att3 = self.attentionblock3(conv3, gating)
-        g_conv2, att2 = self.attentionblock2(conv2, gating)
-
         # Upscaling Part (Decoder)
+        g_conv4, att4 = self.attentionblock4(conv4, gating)
         up4 = self.up_concat4(g_conv4, center)
+        g_conv3, att3 = self.attentionblock3(conv3, up4)
         up3 = self.up_concat3(g_conv3, up4)
+        g_conv2, att2 = self.attentionblock2(conv2, up3)
         up2 = self.up_concat2(g_conv2, up3)
         up1 = self.up_concat1(conv1, up2)
 
@@ -135,4 +134,5 @@ class MultiAttentionBlock(nn.Module):
         gate_2, attention_2 = self.gate_block_2(input, gating_signal)
 
         return self.combine_gates(torch.cat([gate_1, gate_2], 1)), torch.cat([attention_1, attention_2], 1)
+
 
