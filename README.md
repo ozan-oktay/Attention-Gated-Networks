@@ -10,6 +10,9 @@ https://openreview.net/pdf?id=Skft7cijM
 2) "Attention-Gated Networks for Improving Ultrasound Scan Plane Detection" <br />
 https://openreview.net/pdf?id=BJtn7-3sM
 
+### Installation
+pip install --process-dependency-links -e .
+
 ### Dependencies 
 
 Torchsample (torch tensor based transformations) <br />
