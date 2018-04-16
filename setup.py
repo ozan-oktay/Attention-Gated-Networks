@@ -5,7 +5,7 @@ from setuptools import setup, find_packages
 with open('README.md') as f:
     readme = f.read()
 
-setup(name='AttentionGateNetworks',
+setup(name='AttentionGatedNetworks',
       version='1.0',
       description='Pytorch library for Soft Attention',
       long_description=readme,
