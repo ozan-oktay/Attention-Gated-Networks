@@ -14,11 +14,12 @@ Pytorch implementation of attention gates used in U-Net and VGG-16 models. The f
 
 ### References:
 
-1) "Attention-Gated Networks for Improving Ultrasound Scan Plane Detection" <br />
-https://openreview.net/pdf?id=BJtn7-3sM
+1) "Attention-Gated Networks for Improving Ultrasound Scan Plane Detection", MIDL'18, Amsterdam <br />
+[Conference Paper](https://openreview.net/pdf?id=BJtn7-3sM)
 
-2) "Attention U-Net: Learning Where to Look for the Pancreas" <br />
-https://openreview.net/pdf?id=Skft7cijM
+2) "Attention U-Net: Learning Where to Look for the Pancreas", MIDL'18, Amsterdam <br />
+[Conference Paper](https://openreview.net/pdf?id=Skft7cijM) <br />
+[Conference Poster](https://www.doc.ic.ac.uk/~oo2113/posters/MIDL2018_poster.pdf)
 
 ### Installation
 pip install --process-dependency-links -e .
